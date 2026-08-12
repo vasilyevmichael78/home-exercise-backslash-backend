@@ -3,6 +3,7 @@ import type { Graph } from "../domain/graph";
 import { createGetRoutesController } from "./controllers/get-routes.controller";
 import { jsonResponse } from "./response";
 import { Router } from "./router";
+import { getStaticRoutes, serveStaticFile } from "./static-file";
 
 export type HttpDependencies = {
   graph: Graph;
@@ -14,6 +15,10 @@ export function createRouter({
   routeQueryService,
 }: HttpDependencies): Router {
   const router = new Router();
+
+  for (const route of getStaticRoutes()) {
+    router.get(route, () => serveStaticFile(route));
+  }
 
   router.get("/health", () =>
     jsonResponse({
@@ -38,4 +43,3 @@ export function createRouter({
 
   return router;
 }
-

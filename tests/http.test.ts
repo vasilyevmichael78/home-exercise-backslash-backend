@@ -12,6 +12,33 @@ async function request(path: string, init?: RequestInit): Promise<Response> {
 }
 
 describe("HTTP API", () => {
+  test("serves the vanilla frontend from the same application", async () => {
+    const [htmlResponse, scriptResponse, styleResponse] = await Promise.all([
+      request("/"),
+      request("/app.js"),
+      request("/styles.css"),
+    ]);
+
+    expect(htmlResponse.status).toBe(200);
+    expect(htmlResponse.headers.get("Content-Type")).toBe(
+      "text/html; charset=utf-8",
+    );
+    expect(await htmlResponse.text()).toContain("Train Ticket Graph Explorer");
+
+    expect(scriptResponse.status).toBe(200);
+    expect(scriptResponse.headers.get("Content-Type")).toBe(
+      "text/javascript; charset=utf-8",
+    );
+    const script = await scriptResponse.text();
+    expect(script).toContain("/api/routes");
+    expect(script).toContain("SEVERITY_RANK");
+
+    expect(styleResponse.status).toBe(200);
+    expect(styleResponse.headers.get("Content-Type")).toBe(
+      "text/css; charset=utf-8",
+    );
+  });
+
   test("reports loaded graph details and data warnings", async () => {
     const response = await request("/health");
     const body = await response.json();

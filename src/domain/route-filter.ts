@@ -11,21 +11,24 @@ export type RouteFilterName = (typeof routeFilterNames)[number];
 export type RouteQuery = Partial<Record<RouteFilterName, boolean | undefined>>;
 export type RoutePredicate = (route: Route, graph: Graph) => boolean;
 
+export function isPublicNode(nodeId: string, graph: Graph): boolean {
+  return graph.getNode(nodeId)?.publicExposed === true;
+}
+
+export function isSinkNode(nodeId: string, graph: Graph): boolean {
+  const normalizedKind = graph.getNode(nodeId)?.kind.toLowerCase();
+  return normalizedKind === "rds" || normalizedKind === "sql";
+}
+
 export const routeFilterRegistry: Record<RouteFilterName, RoutePredicate> = {
   startsPublic(route, graph) {
     const firstNodeId = route.nodeIds[0];
-    return (
-      firstNodeId !== undefined &&
-      graph.getNode(firstNodeId)?.publicExposed === true
-    );
+    return firstNodeId !== undefined && isPublicNode(firstNodeId, graph);
   },
 
   endsInSink(route, graph) {
     const lastNodeId = route.nodeIds.at(-1);
-    const kind = lastNodeId === undefined ? undefined : graph.getNode(lastNodeId)?.kind;
-    const normalizedKind = kind?.toLowerCase();
-
-    return normalizedKind === "rds" || normalizedKind === "sql";
+    return lastNodeId !== undefined && isSinkNode(lastNodeId, graph);
   },
 
   hasVulnerability(route, graph) {

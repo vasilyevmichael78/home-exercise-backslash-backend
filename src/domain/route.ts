@@ -7,6 +7,9 @@ export type Route = {
 export type RouteDiscoveryOptions = {
   maxDepth?: number;
   maxRoutes?: number;
+  startNodeIds?: readonly string[];
+  isDestination?: (nodeId: string, path: readonly string[]) => boolean;
+  matchesRoute?: (route: Route) => boolean;
 };
 
 export type RouteDiscoveryResult = {
@@ -20,6 +23,11 @@ export function discoverRoutes(
 ): RouteDiscoveryResult {
   const maxDepth = options.maxDepth ?? Math.max(graph.nodes.length, 1);
   const maxRoutes = options.maxRoutes ?? 10_000;
+  const startNodeIds =
+    options.startNodeIds ?? graph.getRoots().map((node) => node.name);
+  const isDestination =
+    options.isDestination ?? ((nodeId: string) => graph.isLeaf(nodeId));
+  const matchesRoute = options.matchesRoute ?? (() => true);
 
   if (!Number.isInteger(maxDepth) || maxDepth < 2) {
     throw new Error("maxDepth must be an integer greater than or equal to 2");
@@ -31,16 +39,22 @@ export function discoverRoutes(
 
   const routes: Route[] = [];
   let truncated = false;
+  let routeLimitReached = false;
 
   function visit(current: string, path: string[], visited: Set<string>): void {
-    if (routes.length >= maxRoutes) {
-      truncated = true;
-      return;
-    }
-
-    if (graph.isLeaf(current)) {
+    if (isDestination(current, path)) {
       if (path.length >= 2) {
-        routes.push({ nodeIds: [...path] });
+        const route = { nodeIds: [...path] };
+
+        if (matchesRoute(route)) {
+          if (routes.length >= maxRoutes) {
+            truncated = true;
+            routeLimitReached = true;
+            return;
+          }
+
+          routes.push(route);
+        }
       }
       return;
     }
@@ -61,16 +75,20 @@ export function discoverRoutes(
       path.pop();
       visited.delete(target);
 
-      if (truncated && routes.length >= maxRoutes) {
+      if (routeLimitReached) {
         return;
       }
     }
   }
 
-  for (const root of graph.getRoots()) {
-    visit(root.name, [root.name], new Set([root.name]));
+  for (const startNodeId of startNodeIds) {
+    if (graph.getNode(startNodeId) === undefined) {
+      continue;
+    }
 
-    if (truncated && routes.length >= maxRoutes) {
+    visit(startNodeId, [startNodeId], new Set([startNodeId]));
+
+    if (routeLimitReached) {
       break;
     }
   }

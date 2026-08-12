@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta
+      name="description"
+      content="Explore and filter directed routes in the Train Ticket service graph."
+    />
+    <title>Train Ticket Graph Explorer</title>
+    <link rel="stylesheet" href="/styles.css" />
+    <script src="/app.js" defer></script>
+  </head>
+  <body>
+    <header class="hero">
+      <div>
+        <p class="eyebrow">Backslash backend exercise</p>
+        <h1>Train Ticket Graph Explorer</h1>
+        <p class="hero-copy">
+          Filter complete directed routes and inspect the resulting service graph.
+        </p>
+      </div>
+      <div id="health" class="health" role="status" aria-live="polite">
+        Checking API…
+      </div>
+    </header>
+
+    <main>
+      <section class="panel filters-panel" aria-labelledby="filters-title">
+        <div class="section-heading">
+          <div>
+            <p class="section-kicker">Query</p>
+            <h2 id="filters-title">Route filters</h2>
+          </div>
+          <button id="reset-button" class="button button-secondary" type="button">
+            Reset
+          </button>
+        </div>
+
+        <form id="filters-form">
+          <div class="filter-grid">
+            <label class="filter-card">
+              <input type="checkbox" name="startsPublic" />
+              <span>
+                <strong>Starts public</strong>
+                <small>First node has publicExposed: true</small>
+              </span>
+            </label>
+
+            <label class="filter-card">
+              <input type="checkbox" name="endsInSink" />
+              <span>
+                <strong>Ends in sink</strong>
+                <small>Last node kind is rds or sql</small>
+              </span>
+            </label>
+
+            <label class="filter-card">
+              <input type="checkbox" name="hasVulnerability" />
+              <span>
+                <strong>Has vulnerability</strong>
+                <small>At least one route node is vulnerable</small>
+              </span>
+            </label>
+          </div>
+
+          <button id="submit-button" class="button button-primary" type="submit">
+            Find routes
+          </button>
+        </form>
+      </section>
+
+      <section class="summary-grid" aria-label="Query summary">
+        <article class="metric-card">
+          <span class="metric-label">Matching routes</span>
+          <strong id="route-count" class="metric-value">—</strong>
+        </article>
+        <article class="metric-card">
+          <span class="metric-label">Graph nodes</span>
+          <strong id="node-count" class="metric-value">—</strong>
+        </article>
+        <article class="metric-card">
+          <span class="metric-label">Graph edges</span>
+          <strong id="edge-count" class="metric-value">—</strong>
+        </article>
+      </section>
+
+      <section class="panel graph-panel" aria-labelledby="graph-title">
+        <div class="section-heading">
+          <div>
+            <p class="section-kicker">Visualization</p>
+            <h2 id="graph-title">Filtered graph</h2>
+          </div>
+          <div class="legend" aria-label="Graph legend">
+            <span><i class="legend-dot public-dot"></i>Public</span>
+            <span><i class="legend-dot sink-dot"></i>Sink</span>
+            <span><i class="legend-dot critical-dot"></i>Critical</span>
+            <span><i class="legend-dot high-dot"></i>High</span>
+            <span><i class="legend-dot medium-dot"></i>Medium</span>
+            <span><i class="legend-dot low-dot"></i>Low</span>
+            <span><i class="legend-dot info-dot"></i>Info</span>
+          </div>
+        </div>
+        <div id="graph-container" class="graph-container">
+          <p class="empty-state">Loading graph…</p>
+        </div>
+      </section>
+
+      <section class="panel routes-panel" aria-labelledby="routes-title">
+        <div class="section-heading">
+          <div>
+            <p class="section-kicker">Paths</p>
+            <h2 id="routes-title">Matching routes</h2>
+          </div>
+          <span id="route-limit-note" class="muted"></span>
+        </div>
+        <ol id="route-list" class="route-list">
+          <li class="empty-state">Loading routes…</li>
+        </ol>
+      </section>
+
+      <section
+        id="warnings-panel"
+        class="panel warnings-panel hidden"
+        aria-labelledby="warnings-title"
+      >
+        <h2 id="warnings-title">Dataset warnings</h2>
+        <ul id="warnings-list"></ul>
+      </section>
+
+      <p id="error-message" class="error-message hidden" role="alert"></p>
+    </main>
+
+    <footer>
+      Vanilla HTML, CSS and JavaScript served by the same Bun process as the API.
+    </footer>
+  </body>
+</html>

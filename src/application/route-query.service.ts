@@ -1,5 +1,7 @@
 import type { Graph, SerializableGraph } from "../domain/graph";
 import {
+  isPublicNode,
+  isSinkNode,
   matchesRouteQuery,
   type RouteQuery,
 } from "../domain/route-filter";
@@ -21,23 +23,36 @@ export type RouteQueryResult = {
   };
 };
 
-export class RouteQueryService {
-  private readonly allRoutes: Route[];
-  private readonly truncated: boolean;
+export type RouteQueryServiceOptions = Pick<
+  RouteDiscoveryOptions,
+  "maxDepth" | "maxRoutes"
+>;
 
+export class RouteQueryService {
   constructor(
     private readonly graph: Graph,
-    options: RouteDiscoveryOptions = {},
-  ) {
-    const discovery = discoverRoutes(graph, options);
-    this.allRoutes = discovery.routes;
-    this.truncated = discovery.truncated;
-  }
+    private readonly options: RouteQueryServiceOptions = {},
+  ) {}
 
   findRoutes(query: RouteQuery): RouteQueryResult {
-    const routes = this.allRoutes.filter((route) =>
-      matchesRouteQuery(route, this.graph, query),
-    );
+    const startNodeIds =
+      query.startsPublic === true
+        ? this.graph.nodes
+            .filter((node) => isPublicNode(node.name, this.graph))
+            .map((node) => node.name)
+        : this.graph.getRoots().map((node) => node.name);
+    const isDestination =
+      query.endsInSink === true
+        ? (nodeId: string) => isSinkNode(nodeId, this.graph)
+        : (nodeId: string) => this.graph.isLeaf(nodeId);
+    const discovery = discoverRoutes(this.graph, {
+      ...this.options,
+      startNodeIds,
+      isDestination,
+      matchesRoute: (route) =>
+        matchesRouteQuery(route, this.graph, query),
+    });
+    const routes = discovery.routes;
 
     return {
       routes,
@@ -45,10 +60,9 @@ export class RouteQueryService {
       meta: {
         routeCount: routes.length,
         filters: query,
-        truncated: this.truncated,
+        truncated: discovery.truncated,
         warnings: this.graph.warnings,
       },
     };
   }
 }
-

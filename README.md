@@ -1,18 +1,23 @@
 # Backslash Graph Query API
 
-A small read-only REST API that loads the supplied Train Ticket service graph and returns complete directed routes matching optional filters. The implementation uses pure Bun HTTP APIs, Zod validation, and `bun:test`.
+A small read-only REST API that loads the supplied Train Ticket service graph and returns complete directed routes matching optional filters. It includes a dependency-free browser UI served by the same Bun process. The implementation uses pure Bun HTTP APIs, vanilla HTML/CSS/JavaScript, Zod validation, and `bun:test`.
 
 ## Decisions and assumptions
 
 The assignment does not define the exact meaning of a route, so this solution uses the following explicit rules:
 
-- A route is a complete directed path from a root node (no incoming edges) to a leaf node (no outgoing edges).
+- A route is a complete directed simple path. Without boundary filters, it runs from a root node (no incoming edges) to a leaf node (no outgoing edges).
+- With `startsPublic=true`, traversal starts at every `publicExposed: true` node, even if that node has incoming edges.
+- With `endsInSink=true`, traversal stops when it reaches an `rds` or `sql` node, even if that node has outgoing edges.
 - A route contains at least one edge. An isolated node is not a route.
 - A node is not visited twice within one route, so cyclic input cannot cause infinite traversal.
 - Provided filters are combined with AND semantics.
 - A sink for `endsInSink` is a node whose `kind` is `rds` or `sql` (case-insensitive), rather than any leaf node.
 - `true` selects routes that satisfy a condition; `false` explicitly selects routes that do not satisfy it; an omitted filter is ignored.
 - The graph is loaded once at startup. Dataset changes require an application restart.
+- The query engine is not tied to the supplied Train Ticket dataset. Any JSON file that satisfies the documented `nodes` and `edges` schema can be loaded through `GRAPH_DATA_PATH`.
+- The application works with one graph per process. Runtime uploads, graph IDs, persistence, and simultaneous querying of multiple graphs are intentionally outside the assignment scope.
+- Route enumeration is protected by `maxDepth` and `maxRoutes`. Very deep or highly branching graphs may produce an intentionally incomplete result, which is explicitly reported through `meta.truncated: true`.
 
 The supplied dataset contains two edges to a missing `assurance-service` node. The default lenient loader skips those edges and exposes warnings through API metadata and `/health`. Domain code also supports strict reference validation.
 
@@ -21,13 +26,26 @@ The supplied dataset contains two edges to a missing `assurance-service` node. T
 ```text
 HTTP request
     -> pure Bun Router
-    -> Controller (HTTP validation)
+    -> static vanilla frontend or API controller
     -> RouteQueryService
     -> graph traversal + filter registry
     -> in-memory Graph loaded from JSON
 ```
 
 HTTP, filesystem loading, graph traversal, and route filters are separate. A new route filter is added to `src/domain/route-filter.ts`; controllers and traversal do not need to change.
+
+## Browser UI
+
+Open `http://localhost:3000` after starting the application. The vanilla frontend provides:
+
+- checkboxes for all three route filters;
+- route, node, and edge counts;
+- a scrollable native SVG visualization;
+- a readable list of matching paths with vulnerable services highlighted by severity;
+- severity colors for critical, high, medium, and low vulnerabilities in both the graph and path list;
+- API health and dataset warnings.
+
+The browser uses relative URLs such as `/api/routes`, so UI and API run on the same origin and do not require CORS. Only the three explicit static paths `/`, `/app.js`, and `/styles.css` are served; arbitrary filesystem paths are never accepted.
 
 ## Requirements
 
@@ -49,7 +67,7 @@ Development mode:
 bun run dev
 ```
 
-The server listens on `http://localhost:3000` by default. Bun loads `.env` automatically, so no `dotenv` dependency is required.
+The frontend and API listen on `http://localhost:3000` by default. Bun loads `.env` automatically, so no `dotenv` dependency is required.
 
 Supported environment variables:
 
@@ -160,7 +178,7 @@ An empty match returns `200 OK` with empty `routes`, `nodes`, and `edges`. Unkno
 
 ## Safety limits
 
-Traversal uses route-local visited-node sets and configurable `maxDepth` and `maxRoutes` limits. The defaults are the graph node count and 10,000 routes. `meta.truncated` is set when a limit prevents complete enumeration.
+Traversal uses route-local visited-node sets and configurable `maxDepth` and `maxRoutes` limits. The defaults are the graph node count and 10,000 matching routes. Boundary filters are applied during traversal, and path predicates are applied before a route counts toward the result limit. `meta.truncated` is set when a limit prevents complete enumeration.
 
 Route enumeration can be exponential in a branching graph because the API returns complete paths. Graph construction itself is linear in the number of nodes and normalized edges.
 

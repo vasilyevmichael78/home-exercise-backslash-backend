@@ -116,4 +116,96 @@ describe("RouteQueryService", () => {
     expect(limitedResult.routes).toHaveLength(2);
     expect(limitedResult.truncated).toBeTrue();
   });
+
+  test("starts at a public node even when it is not a graph root", () => {
+    const dataset = graphDatasetSchema.parse({
+      nodes: [
+        { name: "upstream", kind: "service" },
+        { name: "public", kind: "service", publicExposed: true },
+        { name: "leaf", kind: "service" },
+      ],
+      edges: [
+        { from: "upstream", to: "public" },
+        { from: "public", to: "leaf" },
+      ],
+    });
+    const service = new RouteQueryService(Graph.fromDataset(dataset));
+
+    expect(service.findRoutes({ startsPublic: true }).routes).toEqual([
+      { nodeIds: ["public", "leaf"] },
+    ]);
+  });
+
+  test("stops at a sink even when the sink has an outgoing edge", () => {
+    const dataset = graphDatasetSchema.parse({
+      nodes: [
+        { name: "root", kind: "service" },
+        { name: "database", kind: "SQL" },
+        { name: "downstream", kind: "service" },
+      ],
+      edges: [
+        { from: "root", to: "database" },
+        { from: "database", to: "downstream" },
+      ],
+    });
+    const service = new RouteQueryService(Graph.fromDataset(dataset));
+
+    expect(service.findRoutes({ endsInSink: true }).routes).toEqual([
+      { nodeIds: ["root", "database"] },
+    ]);
+  });
+
+  test("finds public-to-sink routes in a graph without root nodes", () => {
+    const dataset = graphDatasetSchema.parse({
+      nodes: [
+        { name: "public", kind: "service", publicExposed: true },
+        { name: "peer", kind: "service" },
+        { name: "database", kind: "rds" },
+      ],
+      edges: [
+        { from: "public", to: "peer" },
+        { from: "peer", to: ["public", "database"] },
+      ],
+    });
+    const service = new RouteQueryService(Graph.fromDataset(dataset));
+
+    expect(
+      service.findRoutes({ startsPublic: true, endsInSink: true }).routes,
+    ).toEqual([{ nodeIds: ["public", "peer", "database"] }]);
+  });
+
+  test("applies route predicates before counting the route limit", () => {
+    const dataset = graphDatasetSchema.parse({
+      nodes: [
+        { name: "root", kind: "service" },
+        { name: "clean-leaf", kind: "service" },
+        {
+          name: "vulnerable",
+          kind: "service",
+          vulnerabilities: [
+            {
+              file: "service.ts",
+              severity: "high",
+              message: "Example vulnerability",
+            },
+          ],
+        },
+        { name: "vulnerable-leaf", kind: "service" },
+      ],
+      edges: [
+        { from: "root", to: ["clean-leaf", "vulnerable"] },
+        { from: "vulnerable", to: "vulnerable-leaf" },
+      ],
+    });
+    const service = new RouteQueryService(Graph.fromDataset(dataset), {
+      maxRoutes: 1,
+    });
+
+    const result = service.findRoutes({ hasVulnerability: true });
+
+    expect(result.routes).toEqual([
+      { nodeIds: ["root", "vulnerable", "vulnerable-leaf"] },
+    ]);
+    expect(result.meta.truncated).toBeFalse();
+  });
 });
