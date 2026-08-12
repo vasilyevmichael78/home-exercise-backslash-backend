@@ -1,0 +1,406 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Backslash Graph Query API",
+    "version": "1.0.0",
+    "description": "Read-only API for loading a service graph and querying complete directed routes."
+  },
+  "servers": [
+    {
+      "url": "/",
+      "description": "Current server"
+    }
+  ],
+  "tags": [
+    {
+      "name": "System"
+    },
+    {
+      "name": "Graph"
+    }
+  ],
+  "paths": {
+    "/health": {
+      "get": {
+        "tags": ["System"],
+        "summary": "Report API and dataset health",
+        "operationId": "getHealth",
+        "responses": {
+          "200": {
+            "description": "The graph dataset was loaded successfully.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      }
+    },
+    "/api/graph": {
+      "get": {
+        "tags": ["Graph"],
+        "summary": "Return the complete normalized graph",
+        "operationId": "getGraph",
+        "responses": {
+          "200": {
+            "description": "A client-renderable graph with normalized edges.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GraphResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      }
+    },
+    "/api/routes": {
+      "get": {
+        "tags": ["Graph"],
+        "summary": "Query complete directed routes",
+        "description": "All provided filters are combined with AND semantics. An omitted filter is ignored; false explicitly selects routes that do not satisfy that condition.",
+        "operationId": "getRoutes",
+        "parameters": [
+          {
+            "name": "startsPublic",
+            "in": "query",
+            "required": false,
+            "description": "Select routes based on whether the first node has publicExposed set to true.",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "endsInSink",
+            "in": "query",
+            "required": false,
+            "description": "Select routes based on whether the last node kind is rds or sql.",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "hasVulnerability",
+            "in": "query",
+            "required": false,
+            "description": "Select routes based on whether at least one node has a non-empty vulnerabilities array.",
+            "schema": {
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Matching routes and their combined renderable subgraph. An empty match is a successful response with empty arrays.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RouteQueryResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "A filter is unknown or is not true or false.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "Vulnerability": {
+        "type": "object",
+        "required": ["file", "severity", "message"],
+        "properties": {
+          "file": {
+            "type": "string"
+          },
+          "severity": {
+            "type": "string",
+            "examples": ["high", "medium"]
+          },
+          "message": {
+            "type": "string"
+          },
+          "metadata": {
+            "type": "object",
+            "additionalProperties": true
+          }
+        },
+        "additionalProperties": true
+      },
+      "GraphNode": {
+        "type": "object",
+        "required": ["name", "kind"],
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1
+          },
+          "kind": {
+            "type": "string",
+            "minLength": 1,
+            "examples": ["service", "rds", "sql"]
+          },
+          "language": {
+            "type": "string"
+          },
+          "path": {
+            "type": "string"
+          },
+          "publicExposed": {
+            "type": "boolean"
+          },
+          "vulnerabilities": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Vulnerability"
+            }
+          },
+          "metadata": {
+            "type": "object",
+            "additionalProperties": true
+          }
+        },
+        "additionalProperties": true
+      },
+      "GraphEdge": {
+        "type": "object",
+        "required": ["source", "target"],
+        "properties": {
+          "source": {
+            "type": "string"
+          },
+          "target": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "Graph": {
+        "type": "object",
+        "required": ["nodes", "edges"],
+        "properties": {
+          "nodes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/GraphNode"
+            }
+          },
+          "edges": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/GraphEdge"
+            }
+          }
+        },
+        "additionalProperties": false
+      },
+      "GraphWarnings": {
+        "type": "object",
+        "required": ["warnings"],
+        "properties": {
+          "warnings": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "additionalProperties": false
+      },
+      "HealthResponse": {
+        "type": "object",
+        "required": ["status", "nodes", "edges", "warnings"],
+        "properties": {
+          "status": {
+            "type": "string",
+            "const": "ok"
+          },
+          "nodes": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "edges": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "warnings": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "additionalProperties": false
+      },
+      "GraphResponse": {
+        "type": "object",
+        "required": ["nodes", "edges", "meta"],
+        "properties": {
+          "nodes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/GraphNode"
+            }
+          },
+          "edges": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/GraphEdge"
+            }
+          },
+          "meta": {
+            "$ref": "#/components/schemas/GraphWarnings"
+          }
+        },
+        "additionalProperties": false
+      },
+      "Route": {
+        "type": "object",
+        "required": ["nodeIds"],
+        "properties": {
+          "nodeIds": {
+            "type": "array",
+            "minItems": 2,
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "additionalProperties": false
+      },
+      "RouteFilters": {
+        "type": "object",
+        "properties": {
+          "startsPublic": {
+            "type": "boolean"
+          },
+          "endsInSink": {
+            "type": "boolean"
+          },
+          "hasVulnerability": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": false
+      },
+      "RouteQueryMeta": {
+        "type": "object",
+        "required": ["routeCount", "filters", "truncated", "warnings"],
+        "properties": {
+          "routeCount": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "filters": {
+            "$ref": "#/components/schemas/RouteFilters"
+          },
+          "truncated": {
+            "type": "boolean"
+          },
+          "warnings": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "additionalProperties": false
+      },
+      "RouteQueryResponse": {
+        "type": "object",
+        "required": ["routes", "graph", "meta"],
+        "properties": {
+          "routes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Route"
+            }
+          },
+          "graph": {
+            "$ref": "#/components/schemas/Graph"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/RouteQueryMeta"
+          }
+        },
+        "additionalProperties": false
+      },
+      "ValidationIssue": {
+        "type": "object",
+        "required": ["path", "message"],
+        "properties": {
+          "path": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "ValidationErrorResponse": {
+        "type": "object",
+        "required": ["error", "details"],
+        "properties": {
+          "error": {
+            "type": "string",
+            "const": "Invalid route filters"
+          },
+          "details": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ValidationIssue"
+            }
+          }
+        },
+        "additionalProperties": false
+      },
+      "ErrorResponse": {
+        "type": "object",
+        "required": ["error"],
+        "properties": {
+          "error": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "responses": {
+      "InternalServerError": {
+        "description": "Unexpected server error.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ErrorResponse"
+            }
+          }
+        }
+      }
+    }
+  }
+}
+

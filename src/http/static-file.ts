@@ -11,6 +11,10 @@ const staticFiles = {
     path: "public/styles.css",
     contentType: "text/css; charset=utf-8",
   },
+  "/openapi.json": {
+    path: "public/openapi.json",
+    contentType: "application/json; charset=utf-8",
+  },
 } as const;
 
 export type StaticRoute = keyof typeof staticFiles;
@@ -34,4 +38,3 @@ export async function serveStaticFile(route: StaticRoute): Promise<Response> {
     },
   });
 }
-

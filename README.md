@@ -18,6 +18,7 @@ The assignment does not define the exact meaning of a route, so this solution us
 - The query engine is not tied to the supplied Train Ticket dataset. Any JSON file that satisfies the documented `nodes` and `edges` schema can be loaded through `GRAPH_DATA_PATH`.
 - The application works with one graph per process. Runtime uploads, graph IDs, persistence, and simultaneous querying of multiple graphs are intentionally outside the assignment scope.
 - Route enumeration is protected by `maxDepth` and `maxRoutes`. Very deep or highly branching graphs may produce an intentionally incomplete result, which is explicitly reported through `meta.truncated: true`.
+- A small static frontend was added only to demonstrate that the returned graph structure is easy to render. This is intentional overengineering beyond the minimum backend assignment scope; it has no framework or additional runtime dependency and remains isolated from the query engine.
 
 The supplied dataset contains two edges to a missing `assurance-service` node. The default lenient loader skips those edges and exposes warnings through API metadata and `/health`. Domain code also supports strict reference validation.
 
@@ -45,7 +46,7 @@ Open `http://localhost:3000` after starting the application. The vanilla fronten
 - severity colors for critical, high, medium, and low vulnerabilities in both the graph and path list;
 - API health and dataset warnings.
 
-The browser uses relative URLs such as `/api/routes`, so UI and API run on the same origin and do not require CORS. Only the three explicit static paths `/`, `/app.js`, and `/styles.css` are served; arbitrary filesystem paths are never accepted.
+The browser uses relative URLs such as `/api/routes`, so UI and API run on the same origin and do not require CORS. Only explicit static paths are served; arbitrary filesystem paths are never accepted.
 
 ## Requirements
 
@@ -89,7 +90,51 @@ They can also be provided for a single command:
 PORT=4000 GRAPH_DATA_PATH=./train-ticket-be.json bun run start
 ```
 
+## Run with Docker
+
+Docker can be used when Bun is not installed on the host:
+
+```bash
+docker build -t backslash-graph-api .
+docker run --rm -p 3000:3000 backslash-graph-api
+```
+
+Then open `http://localhost:3000` or check the API:
+
+```bash
+curl http://localhost:3000/health
+```
+
+The Dockerfile uses two stages:
+
+1. `build` installs all dependencies and runs type checking and tests.
+2. `runtime` contains Bun, production dependencies, application source, frontend assets, and the supplied dataset. It runs as the non-root `bun` user.
+
+To query another compatible dataset without rebuilding the image, mount it read-only and override `GRAPH_DATA_PATH`:
+
+```bash
+docker run --rm \
+  -p 3000:3000 \
+  -v "$PWD/another-graph.json:/data/graph.json:ro" \
+  -e GRAPH_DATA_PATH=/data/graph.json \
+  backslash-graph-api
+```
+
+To use another host port while keeping the container on port `3000`:
+
+```bash
+docker run --rm -p 4000:3000 backslash-graph-api
+```
+
 ## API
+
+The dependency-free OpenAPI 3.1 contract is available at:
+
+```text
+http://localhost:3000/openapi.json
+```
+
+It can be imported into Postman, Insomnia, or an external Swagger UI. Swagger UI assets are intentionally not bundled.
 
 ### Health
 

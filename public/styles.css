@@ -431,6 +431,12 @@ main {
   text-align: center;
 }
 
+footer a {
+  margin-left: 8px;
+  color: #087f5b;
+  font-weight: 750;
+}
+
 .warnings-panel {
   border-color: #efcf89;
   background: #fffaf0;

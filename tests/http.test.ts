@@ -13,11 +13,13 @@ async function request(path: string, init?: RequestInit): Promise<Response> {
 
 describe("HTTP API", () => {
   test("serves the vanilla frontend from the same application", async () => {
-    const [htmlResponse, scriptResponse, styleResponse] = await Promise.all([
-      request("/"),
-      request("/app.js"),
-      request("/styles.css"),
-    ]);
+    const [htmlResponse, scriptResponse, styleResponse, openApiResponse] =
+      await Promise.all([
+        request("/"),
+        request("/app.js"),
+        request("/styles.css"),
+        request("/openapi.json"),
+      ]);
 
     expect(htmlResponse.status).toBe(200);
     expect(htmlResponse.headers.get("Content-Type")).toBe(
@@ -37,6 +39,18 @@ describe("HTTP API", () => {
     expect(styleResponse.headers.get("Content-Type")).toBe(
       "text/css; charset=utf-8",
     );
+
+    expect(openApiResponse.status).toBe(200);
+    expect(openApiResponse.headers.get("Content-Type")).toBe(
+      "application/json; charset=utf-8",
+    );
+    const openApi = await openApiResponse.json();
+    expect(openApi.openapi).toBe("3.1.0");
+    expect(Object.keys(openApi.paths)).toEqual([
+      "/health",
+      "/api/graph",
+      "/api/routes",
+    ]);
   });
 
   test("reports loaded graph details and data warnings", async () => {
