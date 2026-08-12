@@ -1,0 +1,109 @@
+import type { Graph, SerializableGraph } from "./graph";
+
+export type Route = {
+  nodeIds: string[];
+};
+
+export type RouteDiscoveryOptions = {
+  maxDepth?: number;
+  maxRoutes?: number;
+};
+
+export type RouteDiscoveryResult = {
+  routes: Route[];
+  truncated: boolean;
+};
+
+export function discoverRoutes(
+  graph: Graph,
+  options: RouteDiscoveryOptions = {},
+): RouteDiscoveryResult {
+  const maxDepth = options.maxDepth ?? Math.max(graph.nodes.length, 1);
+  const maxRoutes = options.maxRoutes ?? 10_000;
+
+  if (!Number.isInteger(maxDepth) || maxDepth < 2) {
+    throw new Error("maxDepth must be an integer greater than or equal to 2");
+  }
+
+  if (!Number.isInteger(maxRoutes) || maxRoutes < 1) {
+    throw new Error("maxRoutes must be a positive integer");
+  }
+
+  const routes: Route[] = [];
+  let truncated = false;
+
+  function visit(current: string, path: string[], visited: Set<string>): void {
+    if (routes.length >= maxRoutes) {
+      truncated = true;
+      return;
+    }
+
+    if (graph.isLeaf(current)) {
+      if (path.length >= 2) {
+        routes.push({ nodeIds: [...path] });
+      }
+      return;
+    }
+
+    if (path.length >= maxDepth) {
+      truncated = true;
+      return;
+    }
+
+    for (const target of graph.getOutgoing(current)) {
+      if (visited.has(target)) {
+        continue;
+      }
+
+      visited.add(target);
+      path.push(target);
+      visit(target, path, visited);
+      path.pop();
+      visited.delete(target);
+
+      if (truncated && routes.length >= maxRoutes) {
+        return;
+      }
+    }
+  }
+
+  for (const root of graph.getRoots()) {
+    visit(root.name, [root.name], new Set([root.name]));
+
+    if (truncated && routes.length >= maxRoutes) {
+      break;
+    }
+  }
+
+  return { routes, truncated };
+}
+
+export function createRouteSubgraph(
+  graph: Graph,
+  routes: readonly Route[],
+): SerializableGraph {
+  const nodeIds = new Set<string>();
+  const edgeKeys = new Set<string>();
+
+  for (const route of routes) {
+    for (const nodeId of route.nodeIds) {
+      nodeIds.add(nodeId);
+    }
+
+    for (let index = 0; index < route.nodeIds.length - 1; index += 1) {
+      const source = route.nodeIds[index];
+      const target = route.nodeIds[index + 1];
+
+      if (source !== undefined && target !== undefined) {
+        edgeKeys.add(`${source}\u0000${target}`);
+      }
+    }
+  }
+
+  return {
+    nodes: graph.nodes.filter((node) => nodeIds.has(node.name)),
+    edges: graph.edges.filter((edge) =>
+      edgeKeys.has(`${edge.source}\u0000${edge.target}`),
+    ),
+  };
+}
